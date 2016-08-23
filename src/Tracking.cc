@@ -192,35 +192,6 @@ cv::Mat Tracking::GrabImageStereo(const cv::Mat &imRectLeft,
   return mCurrentFrame.mTcw.clone();
 }
 
-cv::Mat Tracking::GrabImageRGBD(const cv::Mat &imRGB, const cv::Mat &imD,
-                                const double &timestamp) {
-  mImGray = imRGB;
-  cv::Mat imDepth = imD;
-
-  if (mImGray.channels() == 3) {
-    if (mbRGB)
-      cvtColor(mImGray, mImGray, CV_RGB2GRAY);
-    else
-      cvtColor(mImGray, mImGray, CV_BGR2GRAY);
-  } else if (mImGray.channels() == 4) {
-    if (mbRGB)
-      cvtColor(mImGray, mImGray, CV_RGBA2GRAY);
-    else
-      cvtColor(mImGray, mImGray, CV_BGRA2GRAY);
-  }
-
-  if (mDepthMapFactor != 1 || imDepth.type() != CV_32F)
-    ;
-  imDepth.convertTo(imDepth, CV_32F, mDepthMapFactor);
-
-  mCurrentFrame = Frame(mImGray, imDepth, timestamp, mpORBextractorLeft,
-                        mpORBVocabulary, mK, mDistCoef, mbf, mThDepth);
-
-  Track();
-
-  return mCurrentFrame.mTcw.clone();
-}
-
 cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im,
                                      const double &timestamp) {
   mImGray = im;
@@ -260,11 +231,7 @@ void Tracking::Track() {
   unique_lock<mutex> lock(mpMap->mMutexMapUpdate);
 
   if (mState == NOT_INITIALIZED) {
-    if (mSensor == System::STEREO || mSensor == System::RGBD)
-      StereoInitialization();
-    else
-      MonocularInitialization();
-
+    StereoInitialization();
     mpFrameDrawer->Update(this);
 
     if (mState != OK)
@@ -287,13 +254,17 @@ void Tracking::Track() {
           bOK = TrackReferenceKeyFrame();
         } else {
           bOK = TrackWithMotionModel();
+          // to be deleted @Handuo
+          // to insert IMU data
           if (!bOK)
             bOK = TrackReferenceKeyFrame();
         }
       } else {
         bOK = Relocalization();
       }
-    } else {
+    }
+
+    else {
       // Only Tracking: Local Mapping is deactivated
 
       if (mState == LOST) {
